@@ -11,7 +11,7 @@ import numpy as np
 from keras import backend
 from keras.layers import Activation, Input
 from keras.layers.core import Dense, Lambda, Reshape
-from keras.layers.convolutional import Convolution1D
+from keras.layers.convolutional import Conv1D
 from keras.layers.merge import concatenate, dot
 from keras.models import Model
 
@@ -47,7 +47,7 @@ neg_docs = [Input(shape = (None, WORD_DEPTH)) for j in range(J)]
 # of W_c. Therefore, h_Q = tanh(l_Q • W_c + b_c) with l_Q, W_c, and b_c being
 # the transposes of the matrices described in the paper. Note: the paper does not
 # include bias units.
-query_conv = Convolution1D(K, FILTER_LENGTH, padding = "same", input_shape = (None, WORD_DEPTH), activation = "tanh")(query) # See equation (2).
+query_conv = Conv1D(K, FILTER_LENGTH, padding = "same", input_shape = (None, WORD_DEPTH), activation = "tanh")(query) # See equation (2).
 
 # Next, we apply a max-pooling layer to the convolved query matrix. Keras provides
 # its own max-pooling layers, but they cannot handle variable length input (as
@@ -62,7 +62,7 @@ query_max = Lambda(lambda x: backend.max(x, axis = 1), output_shape = (K, ))(que
 query_sem = Dense(L, activation = "tanh", input_dim = K)(query_max) # See section 3.5.
 
 # The document equivalent of the above query model.
-doc_conv = Convolution1D(K, FILTER_LENGTH, padding = "same", input_shape = (None, WORD_DEPTH), activation = "tanh")
+doc_conv = Conv1D(K, FILTER_LENGTH, padding = "same", input_shape = (None, WORD_DEPTH), activation = "tanh")
 doc_max = Lambda(lambda x: backend.max(x, axis = 1), output_shape = (K, ))
 doc_sem = Dense(L, activation = "tanh", input_dim = K)
 
@@ -88,7 +88,7 @@ concat_Rs = Reshape((J + 1, 1))(concat_Rs)
 # on a held-out data set. We're going to learn gamma's value by pretending it's
 # a single 1 x 1 kernel.
 weight = np.array([1]).reshape(1, 1, 1)
-with_gamma = Convolution1D(1, 1, padding = "same", input_shape = (J + 1, 1), activation = "linear", use_bias = False, weights = [weight])(concat_Rs) # See equation (5).
+with_gamma = Conv1D(1, 1, padding = "same", input_shape = (J + 1, 1), activation = "linear", use_bias = False, weights = [weight])(concat_Rs) # See equation (5).
 with_gamma = Reshape((J + 1, ))(with_gamma)
 
 # Finally, we use the softmax function to calculate P(D+|Q).
@@ -97,6 +97,7 @@ prob = Activation("softmax")(with_gamma) # See equation (5).
 # We now have everything we need to define our model.
 model = Model(inputs = [query, pos_doc] + neg_docs, outputs = prob)
 model.compile(optimizer = "adadelta", loss = "categorical_crossentropy")
+model.summary()
 
 # Build a random data set.
 sample_size = 10
@@ -143,7 +144,7 @@ if BATCH:
     for j in range(J):
         neg_l_Ds[j] = np.array(neg_l_Ds[j])
     
-    history = model.fit([l_Qs, pos_l_Ds] + [neg_l_Ds[j] for j in range(J)], y, epochs = 1, verbose = 0)
+    history = model.fit([l_Qs, pos_l_Ds] + [neg_l_Ds[j] for j in range(J)], y, epochs = 3)
 else:
     y = np.zeros(J + 1).reshape(1, J + 1)
     y[0, 0] = 1
